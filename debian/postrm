@@ -1,10 +1,12 @@
 #!/bin/sh
-if [ "$1" = "remove" -o "$1" = "abort-install" -o "$1" = "disappear" ] \
-    && [ -n "$(dpkg-divert --list wireguard)" ]; then
-  dpkg-divert --package wireguard  --rename --remove \
-              /opt/vyatta/share/perl5/Vyatta/Interface.pm
-  dpkg-divert --package wireguard  --rename --remove \
-              /opt/vyatta/share/vyatta-cfg/templates/firewall/options/mss-clamp/interface-type/node.def
-  dpkg-divert --package wireguard  --rename --remove \
-              /opt/vyatta/share/vyatta-cfg/templates/firewall/options/mss-clamp6/interface-type/node.def
-fi
+case $1 in
+  remove | abort-install | disappear)
+    ddl="$(dpkg-divert --list wireguard)" &&
+    [ -n "$ddl" ] &&
+    for p in perl5/Vyatta/Interface.pm \
+             vyatta-cfg/templates/firewall/options/mss-clamp/interface-type/node.def \
+             vyatta-cfg/templates/firewall/options/mss-clamp6/interface-type/node.def
+    do
+      dpkg-divert --package wireguard --rename --remove /opt/vyatta/share/"$p"
+    done
+esac
