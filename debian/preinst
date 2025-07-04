@@ -1,28 +1,45 @@
 #!/bin/sh
 
-case "$1" in
-  install|upgrade)
-    if [ "$(uname -r)" != "KERNEL_VER" ]; then
-      echo "This package contains the wireguard kernel modules for KERNEL_VER, you're trying to install it on $(uname -r). Aborting."
+ur=$( uname -r )
+case $1 in
+  install | upgrade)
+    if [ "$ur" != KERNEL_VER ]; then
+      echo "This package contains the wireguard kernel modules for KERNEL_VER, but you're trying to install it on $ur. Aborting."
       exit 1
     fi
     ;;
 esac
 
-if [ "$1" = "install" ] || dpkg --compare-versions "$(dpkg-query --showformat='${Version}' --show wireguard)" lt "0.0.20171111-1"; then
-  dpkg-divert --package wireguard --rename \
-              --divert /opt/vyatta/share/perl5/Vyatta/Interface.pm.vyatta \
-              --add /opt/vyatta/share/perl5/Vyatta/Interface.pm
+if [ "$1" = install ]
+then level=3
+elif
+  ver=$( dpkg-query --showformat='${Version}' --show wireguard )
+  # bisect
+  dpkg --compare-versions "$ver" lt 0.0.20180731-1
+then
+  if dpkg --compare-versions "$ver" lt 0.0.20171111-1
+  then level=3
+  else level=2
+  fi
+else
+  if dpkg --compare-versions "$ver" lt "0.0.20191219-1"
+  then level=1
+  else level=0
+  fi
 fi
 
-if [ "$1" = "install" ] || dpkg --compare-versions "$(dpkg-query --showformat='${Version}' --show wireguard)" lt "0.0.20180731-1"; then
-  dpkg-divert --package wireguard --rename \
-              --divert /opt/vyatta/share/vyatta-cfg/templates/firewall/options/mss-clamp/interface-type/node.def.vyatta \
-              --add /opt/vyatta/share/vyatta-cfg/templates/firewall/options/mss-clamp/interface-type/node.def
-fi
+ddd() {
+  p=/opt/vyatta/share/$1
+  dpkg-divert --package wireguard --rename --divert "$p.vyatta" --add "$p"
+}
 
-if [ "$1" = "install" ] || dpkg --compare-versions "$(dpkg-query --showformat='${Version}' --show wireguard)" lt "0.0.20191219-1"; then
-  dpkg-divert --package wireguard --rename \
-              --divert /opt/vyatta/share/vyatta-cfg/templates/firewall/options/mss-clamp6/interface-type/node.def.vyatta \
-              --add /opt/vyatta/share/vyatta-cfg/templates/firewall/options/mss-clamp6/interface-type/node.def
-fi
+# ver < 0.0.20171111-1
+[ "$level" -ge 3 ] && ddd perl5/Vyatta/Interface.pm
+
+# ver < "0.0.20180731-1"
+[ "$level" -ge 2 ] && ddd vyatta-cfg/templates/firewall/options/mss-clamp/interface-type/node.def
+
+# ver < "0.0.20191219-1"
+[ "$level" -ge 1 ] && ddd vyatta-cfg/templates/firewall/options/mss-clamp6/interface-type/node.def
+
+:
